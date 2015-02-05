@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import urllib;
 import urllib2;
 import sys;
 import re;
@@ -42,5 +43,5 @@ url = imgtag[startindex:endindex];
 
 print(url);
 
-urllib.urlretrieve(url, "Flickr from " + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")); 
+urllib.urlretrieve(url, "Flickr from " + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y" + ".jpg"));
 
