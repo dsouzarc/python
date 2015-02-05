@@ -47,3 +47,6 @@ url = imgtag[startindex:endindex];
 
 #Go to the link, get the photo and save it as a 'jpg' with the image's flickr title
 urllib.urlretrieve(url, title + ".jpg");
+
+#Success
+print("Successfully downloaded: " + title);
