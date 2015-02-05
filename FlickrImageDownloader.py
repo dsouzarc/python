@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import datetime;
 import re;
 import sys;
 import urllib;
@@ -22,6 +21,14 @@ else:
 #Get the HTML from the flickr page
 rawhtml = pageHTML.read();
 
+titleStart = rawhtml.find("<title>", 0);
+titleEnd = rawhtml.find("</title>", 0);
+tempTitle = rawhtml[titleStart:titleEnd];
+
+titleStart = tempTitle.find(" | ", 0) + 3;
+titleEnd = tempTitle.find(" | Flickr", 0);
+title = tempTitle[titleStart:titleEnd];
+
 #Start and end of the image tag
 startindex = rawhtml.find('<img src="https://farm', 0);
 endindex = rawhtml.find('<p id="faq-link" class="info">', 0);
@@ -37,4 +44,4 @@ endindex = imgtag.find('">', 2);
 url = imgtag[startindex:endindex]; 
 
 #Go to the link, get the photo and save it as a 'jpg' with today's time and date as the file name
-urllib.urlretrieve(url, "Flickr from " + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y" + ".jpg"));
+urllib.urlretrieve(url, title + ".jpg");
