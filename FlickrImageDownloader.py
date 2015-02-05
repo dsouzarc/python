@@ -30,6 +30,13 @@ rawhtml = pageHTML.read();
 #print(rawhtml);
 
 startindex = rawhtml.find('<img src="https://farm', 0);
+endindex = rawhtml.find('<p id="faq-link" class="info">', 0);
 
-print(rawhtml.find("allsizes-photo", 50));
-print(rawhtml[startindex:startindex+50]);
+imgtag = rawhtml[startindex:endindex];
+
+startindex = imgtag.find('http', 0);
+endindex = imgtag.find('">', 2);
+
+url = imgtag[startindex:endindex]; 
+
+print(url);
