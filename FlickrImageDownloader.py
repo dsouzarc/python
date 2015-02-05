@@ -1,15 +1,10 @@
 #!/usr/bin/python
 
+import datetime;
+import re;
+import sys;
 import urllib;
 import urllib2;
-import sys;
-import re;
-import datetime;
-
-def parse(html, *atrs):
-    soup= BeautifulSoup(html)
-    body = soup.find(*atrs)
-    return body
 
 #Written by Ryan D'souza
 #Receives the URL to a beautiful picture hosted on Flickr that cannot be downloaded
@@ -24,24 +19,22 @@ if len(sys.argv) == 2:
 else:
     pageHTML = urllib2.urlopen(raw_input("Enter flickr link: "));
 
-#Print result for now
-#print(pageHTML.read());
-
-
+#Get the HTML from the flickr page
 rawhtml = pageHTML.read();
-#print(rawhtml);
 
+#Start and end of the image tag
 startindex = rawhtml.find('<img src="https://farm', 0);
 endindex = rawhtml.find('<p id="faq-link" class="info">', 0);
 
+#String for the image tag
 imgtag = rawhtml[startindex:endindex];
 
+#Find the link in that image tag
 startindex = imgtag.find('http', 0);
 endindex = imgtag.find('">', 2);
 
+#The link
 url = imgtag[startindex:endindex]; 
 
-print(url);
-
+#Go to the link, get the photo and save it as a 'jpg' with today's time and date as the file name
 urllib.urlretrieve(url, "Flickr from " + datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y" + ".jpg"));
-
