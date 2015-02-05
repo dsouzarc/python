@@ -21,10 +21,12 @@ else:
 #Get the HTML from the flickr page
 rawhtml = pageHTML.read();
 
+#Gets the title HTML tag
 titleStart = rawhtml.find("<title>", 0);
 titleEnd = rawhtml.find("</title>", 0);
 tempTitle = rawhtml[titleStart:titleEnd];
 
+#Gets the image's actual title
 titleStart = tempTitle.find(" | ", 0) + 3;
 titleEnd = tempTitle.find(" | Flickr", 0);
 title = tempTitle[titleStart:titleEnd];
@@ -43,5 +45,5 @@ endindex = imgtag.find('">', 2);
 #The link
 url = imgtag[startindex:endindex]; 
 
-#Go to the link, get the photo and save it as a 'jpg' with today's time and date as the file name
+#Go to the link, get the photo and save it as a 'jpg' with the image's flickr title
 urllib.urlretrieve(url, title + ".jpg");
