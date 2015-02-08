@@ -9,3 +9,4 @@ Given the URL to a Flickr image that is not supposed to be downloaded, this Pyth
 Given an image name (or pointer towards image), this Python script will 
 1. Create a new folder in that directory named 'App Icons'
 2. Make a bunch of icons in different dimensions - all according to Apple's iOS UI design code - and save it with an appropriate title in the 'App Icons' directory as .png files
+Though there are websites that do this, my Python script is faster and easier to use.
