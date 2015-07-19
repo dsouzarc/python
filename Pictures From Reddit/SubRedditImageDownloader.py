@@ -175,6 +175,19 @@ class RedditPost:
         self.title = title;
         self.url = url;
 
+
 if __name__ == "__main__":
-    downloader = SubRedditImageDownloader("winterporn");
+    #downloader = SubRedditImageDownloader("winterporn");
+    response = urllib2.urlopen("https://www.flickr.com/photos/bradleyeasom/11457827854/").read();
+    response = urllib2.urlopen("https://www.flickr.com/photos/vivnsect/11377734655/lightbox/").read();
+    response = response.replace("\n", "");
+    jsonBegin = response.find("modelExport: ", 0) + 12;
+    jsonEnd = response.find("auth: auth,", 0) - 3;
+    json = json.loads(response[jsonBegin:jsonEnd]);
+    photoSizes = json["photo-models"];
+    photoSizes = photoSizes[0]["sizes"];
+
+    original = photoSizes["o"];
+    print(original["url"]);
+
     
