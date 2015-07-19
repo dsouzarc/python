@@ -33,7 +33,8 @@ class SubRedditImageDownloader:
             response = urllib2.urlopen(redditURL);
             response = json.load(response);
 
-            jsonPosts = response["data"]["children"];
+            data = response["data"];
+            jsonPosts = data["children"];
 
             for jsonPost in jsonPosts:
                 jsonPost = jsonPost["data"];
@@ -48,6 +49,22 @@ class SubRedditImageDownloader:
                 actualURL = self.getPhotoURL(redditPost);
                 self.savePhoto(redditPost, actualURL);
 
+            #Check conditions to see if we should continue
+            if self.maxNumberOfPhotos != 0 and self.numberOfSavedPhotos >= self.maxNumberOfPhotos:
+                return;
+            
+            #Get the last saved post
+            if self.minUpvotes != 0 and self.redditPosts[-1].score <= self.minUpvotes:
+                return;
+
+            afterToken = data["after"];
+            if len(afterToken) <= 3:
+                print("NO MORE IMAGES");
+            else:
+                redditURL += "&after=" + afterToken;
+                print("Getting next page...");
+                self.getRedditPosts(redditURL);
+
         def getPhotoURL(self, redditPost):
             #Plain and simple
             if redditPost.domain == 'i.imgur.com':
@@ -55,7 +72,7 @@ class SubRedditImageDownloader:
             if redditPost.domain == 'imgur.com':
                 return redditPost.url.replace("imgur.com/", "imgur.com/download/");
             else:
-                return "PROBLEM";
+                return redditPost.url;
 
         def savePhoto(self, redditPost, actualURL):
             print("Reading: " + actualURL);
@@ -66,25 +83,20 @@ class SubRedditImageDownloader:
                 if redditPost.score >= self.minUpvotes:
                     if self.maxNumberOfPhotos != 0 and self.numberOfSavedPhotos <= self.maxNumberOfPhotos:
                         fileName = redditPost.title + imageInfo["content_type"];
+                        fileName = fileName.replace("/", "").replace("\\", "");
                         with open(fileName, 'w') as imageFile:
                             imageFile.write(image);
                             imageFile.close();
                             print("Successfully saved: " + fileName);
+                            self.numberOfSavedPhotos += 1;
                     else:
-                        print("Max hit");
+                        print("Max hit: " + redditPost.title);
                 else:
-                    print("Not enough upvotes");
+                    print("Not enough upvotes: " + redditPost.title);
             else:
-                print("Too small: " + str(imageInfo["width"]) + "\tHeight: " + str(imageInfo["height"]));
-
-
-
+                print("Too small: " + str(imageInfo["width"]) + "\tHeight: " + str(imageInfo["height"]) + "\t" + redditPost.title);
 
         def get_image_info(self, data):
-            """
-            Return (content_type, width, height) for a given img file content
-            no requirements
-            """
             data = str(data)
             size = len(data)
             height = -1
@@ -138,8 +150,10 @@ class SubRedditImageDownloader:
                     height = int(h)
                     
                 except struct.error:
+                    print("ERROR GETTING IMAGE DIMENSIONS");
                     pass
                 except ValueError:
+                    print("ERROR GETTING IMAGE DIMENSIONS");
                     pass
 
             return {
