@@ -1,5 +1,6 @@
 from StringIO import *
 import re;
+import random;
 import struct;
 import json;
 import sys;
@@ -11,6 +12,9 @@ class SubRedditImageDownloader:
         generatedURL = None;
         redditPosts = None;
         numberOfSavedPhotos = None;
+        userAgents = None;
+        userAgent = None;
+        counter = None;
 
         maxNumberOfPhotos = None;
         minUpvotes = None;
@@ -21,6 +25,13 @@ class SubRedditImageDownloader:
             self.generatedURL = "http://www.reddit.com/r/" + subreddit + "/top.json?sort=top&t=all";
             self.redditPosts = [];
             self.numberOfSavedPhotos = 0;
+            self.userAgents = [];
+            self.counter = 0;
+
+            with open('50useragents.txt', 'r') as userAgentsFile:
+                for userAgent in userAgentsFile:
+                    self.userAgents.append(userAgent);
+            self.userAgent = random.choice(self.userAgents);
 
             self.maxNumberOfPhotos = maxNumberOfPhotos;
             self.minUpvotes = minUpvotes;
@@ -30,8 +41,9 @@ class SubRedditImageDownloader:
             self.getRedditPosts(self.generatedURL);
 
         def getRedditPosts(self, redditURL):
-            response = urllib2.urlopen(redditURL);
-            response = json.load(response);
+            self.userAgentHandler();
+            response = urllib2.urlopen(self.getURLLibRequest(redditURL)).read();
+            response = json.loads(response);
 
             data = response["data"];
             jsonPosts = data["children"];
@@ -65,30 +77,65 @@ class SubRedditImageDownloader:
                 print("Getting next page...");
                 self.getRedditPosts(redditURL);
 
+        def userAgentHandler(self):
+            self.counter += 1;
+            if self.counter % 10 == 0:
+                self.userAgent = random.choice(self.userAgents);
+
+        def getURLLibRequest(self, url):
+            request = urllib2.Request(url, headers={ 'User-Agent': self.userAgent});
+            return request;
+
         def getPhotoURL(self, redditPost):
             #Plain and simple
-            if redditPost.domain == 'i.imgur.com':
-                return redditPost.url;
             if redditPost.domain == 'imgur.com':
                 return redditPost.url.replace("imgur.com/", "imgur.com/download/");
+            if redditPost.domain == 'flickr.com':
+                self.userAgentHandler();
+                response = urllib2.urlopen(self.getURLLibRequest(redditURL)).read().replace("\n", "");
+
+                jsonBegin = response.find("modelExport: ", 0) + 12;
+                jsonEnd = response.find("auth: auth,", 0) - 3;
+                json = json.loads(response[jsonBegin:jsonEnd]);
+                photoSizes = json["photo-models"];
+                photoSizes = photoSizes[0]["sizes"];
+                if 'o' in photoSizes:
+                    return "http:" + photoSizes["o"]["url"];
+                if 'l' in photoSizes:
+                    return "http:" + photoSizes["l"]["url"];
+                if 'c' in photoSizes:
+                    return "http:" + photoSizes["c"]["url"];
             else:
                 return redditPost.url;
 
         def savePhoto(self, redditPost, actualURL):
             print("Reading: " + actualURL);
-            image = urllib.urlopen(actualURL).read();
+
+            try:
+                self.userAgentHandler();
+                image = urllib2.urlopen(self.getURLLibRequest(actualURL)).read();
+            except IOError:
+                return;
+
             imageInfo = self.get_image_info(image);
 
-            if imageInfo["width"] >= self.minPhotoWidth and imageInfo["height"] >= self.minPhotoHeight:
+            if imageInfo["width"] >= self.minPhotoWidth and imageInfo["height"] >= self.minPhotoHeight or 1 == 1:
                 if redditPost.score >= self.minUpvotes:
                     if self.maxNumberOfPhotos != 0 and self.numberOfSavedPhotos <= self.maxNumberOfPhotos:
-                        fileName = redditPost.title + imageInfo["content_type"];
-                        fileName = fileName.replace("/", "").replace("\\", "");
-                        with open(fileName, 'w') as imageFile:
-                            imageFile.write(image);
-                            imageFile.close();
-                            print("Successfully saved: " + fileName);
-                            self.numberOfSavedPhotos += 1;
+                        fileName = redditPost.title.replace("/", "").replace("\\", "");
+                        if len(fileName) > 245:
+                            fileName = fileName[0:245];
+                        
+                        fileName += imageInfo["content_type"];
+
+                        if len(imageInfo["content_type"]) > 2:
+                            with open(fileName, 'w') as imageFile:
+                                imageFile.write(image);
+                                imageFile.close();
+                                print("Successfully saved: " + fileName);
+                                self.numberOfSavedPhotos += 1;
+                        else:
+                            print("ALBUM: " + redditPost.title + "\t" + redditPost.url);
                     else:
                         print("Max hit: " + redditPost.title);
                 else:
@@ -177,21 +224,4 @@ class RedditPost:
 
 
 if __name__ == "__main__":
-    #downloader = SubRedditImageDownloader("winterporn");
-    response = urllib2.urlopen("https://www.flickr.com/photos/bradleyeasom/11457827854/").read();
-    response = urllib2.urlopen("https://www.flickr.com/photos/departingyyz/19491432609/").read();
-    response = response.replace("\n", "");
-    jsonBegin = response.find("modelExport: ", 0) + 12;
-    jsonEnd = response.find("auth: auth,", 0) - 3;
-    json = json.loads(response[jsonBegin:jsonEnd]);
-    photoSizes = json["photo-models"];
-    photoSizes = photoSizes[0]["sizes"];
-
-
-    if 'o' in photoSizes:
-        print(photoSizes["o"]["url"]);
-    if 'l' in photoSizes:
-        print(photoSizes["l"]["url"]);
-    if 'c' in photoSizes:
-        print(photoSizes["c"]["url"]);
-    
+    downloader = SubRedditImageDownloader(raw_input("Enter subreddit: "));
