@@ -179,7 +179,7 @@ class RedditPost:
 if __name__ == "__main__":
     #downloader = SubRedditImageDownloader("winterporn");
     response = urllib2.urlopen("https://www.flickr.com/photos/bradleyeasom/11457827854/").read();
-    response = urllib2.urlopen("https://www.flickr.com/photos/vivnsect/11377734655/lightbox/").read();
+    response = urllib2.urlopen("https://www.flickr.com/photos/departingyyz/19491432609/").read();
     response = response.replace("\n", "");
     jsonBegin = response.find("modelExport: ", 0) + 12;
     jsonEnd = response.find("auth: auth,", 0) - 3;
@@ -187,7 +187,11 @@ if __name__ == "__main__":
     photoSizes = json["photo-models"];
     photoSizes = photoSizes[0]["sizes"];
 
-    original = photoSizes["o"];
-    print(original["url"]);
 
+    if 'o' in photoSizes:
+        print(photoSizes["o"]["url"]);
+    if 'l' in photoSizes:
+        print(photoSizes["l"]["url"]);
+    if 'c' in photoSizes:
+        print(photoSizes["c"]["url"]);
     
