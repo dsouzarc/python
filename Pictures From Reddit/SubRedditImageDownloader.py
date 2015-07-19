@@ -52,6 +52,8 @@ class SubRedditImageDownloader:
             #Plain and simple
             if redditPost.domain == 'i.imgur.com':
                 return redditPost.url;
+            if redditPost.domain == 'imgur.com':
+                return redditPost.url.replace("imgur.com/", "imgur.com/download/");
             else:
                 return "PROBLEM";
 
