@@ -2,10 +2,12 @@ from StringIO import *;
 
 import json;
 import random;
+import requests;
 import struct
 import sys;
 import urllib;
 import urllib2;
+import warnings
 
 #####################################################################
 
@@ -40,12 +42,15 @@ class SubRedditImageDownloader:
         minPhotoWidth = None;
         minPhotoHeight = None;
 
-        def __init__(self, subreddit, maxNumberOfPhotos=10000, minUpvotes=0, minPhotoWidth=700, minPhotoHeight=700):
+        def __init__(self, subreddit, maxNumberOfPhotos=10000, minUpvotes=0, minPhotoWidth=600, minPhotoHeight=600):
             self.generatedURL = "http://www.reddit.com/r/" + subreddit + "/top.json?sort=top&t=all";
             self.redditPosts = [];
             self.numberOfSavedPhotos = 0;
             self.userAgents = [];
             self.counter = 0;
+
+            #Disable python warnings --> usually about an improper SSL handshake. 
+            warnings.filterwarnings("ignore")
 
             #Add 50 random UserAgents to the array and choose one
             with open('50useragents.txt', 'r') as userAgentsFile:
@@ -126,14 +131,17 @@ class SubRedditImageDownloader:
             if redditPost.domain == 'imgur.com':
                 return redditPost.url.replace("imgur.com/", "imgur.com/download/");
 
-            #Any form of flickr requires parsing to get the photo's actual URL
+            #Any form of flickr requires special parsing to get the photo's actual URL
             if redditPost.domain == 'flickr.com':
-                self.userAgentHandler();
-                response = urllib2.urlopen(self.getURLLibRequest(redditPost.url)).read().replace("\n", "");
-
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/600.5.17 (KHTML, like Gecko) Version/8.0.5 Safari/600.5.17"
+                };
+                response = requests.get(redditPost.url, headers=headers);
+                response = response.content.replace("\n", "");
                 jsonBegin = response.find("modelExport: ", 0) + 12;
                 jsonEnd = response.find("auth: auth,", 0) - 3;
 
+                #The first type of Flickr photo/url
                 try:
                     jsonResult = json.loads(response[jsonBegin:jsonEnd]);
                     photoSizes = jsonResult["photo-models"];
@@ -146,9 +154,25 @@ class SubRedditImageDownloader:
                         return "http:" + photoSizes["l"]["url"];
                     if 'c' in photoSizes:
                         return "http:" + photoSizes["c"]["url"];
+                    else
+                        print("NO PHOTO SIZE FOUND: " + redditPost.title + "\t" + redditPost.url);
+
+                #If this way doesn't work, there's another type of Flickr tag we can download
                 except ValueError:
-                    print("ERROR GETTING IMAGE: " + redditPost.title + "\tURL: " + redditPost.url);
-                    return redditPost.url;
+                    try:
+                        #Start and end of the image tag
+                        startindex = response.find('<img src="https://farm', 0);
+                        endindex = response.find('<p id="faq-link" class="info">', 0);
+                        imgtag = response[startindex:endindex];
+
+                        #Find the link in that image tag
+                        startindex = imgtag.find('http', 0);
+                        endindex = imgtag.find('">', 2);
+                        url = imgtag[startindex:endindex]; 
+                        return url;
+                    except:
+                        print("\nERROR GETTING IMAGE: " + redditPost.title + "\tURL: " + redditPost.url + "\n");
+                        return redditPost.url;
 
             #If it's nothing we're familiar with
             else:
@@ -169,13 +193,18 @@ class SubRedditImageDownloader:
             imageInfo = self.get_image_info(image);
 
             #Check to make sure the image dimensions match the minimums
-            if imageInfo["width"] >= self.minPhotoWidth and imageInfo["height"] >= self.minPhotoHeight or 1 == 1:
+            if imageInfo["width"] >= self.minPhotoWidth and imageInfo["height"] >= self.minPhotoHeight:
 
                 #And that the score is greater than the minimum
                 if redditPost.score >= self.minUpvotes:
 
-                    #And that we haven't passed our max number of photos
-                    if self.maxNumberOfPhotos != 0 and self.numberOfSavedPhotos <= self.maxNumberOfPhotos:
+                    #And that we haven't passed our max number of photos. For now, just download everything
+                    if self.maxNumberOfPhotos != 0 and self.numberOfSavedPhotos <= self.maxNumberOfPhotos or 1 == 1:
+
+                        #Except images that no longer exist --> symbolized by special image
+                        if imageInfo["width"] == 161 and imageInfo["height"] == 81 and imageInfo["content-type"] == ".png":
+                            print("NO LONGER EXISTS: \t" + actualURL);
+                            return;
 
                         #Fix the file name - replace '\', shorten title if it's too long, add image type at the end
                         fileName = redditPost.title.replace("/", "").replace("\\", "");
@@ -193,13 +222,13 @@ class SubRedditImageDownloader:
 
                         #Otherwise, it's an album
                         else:
-                            print("ALBUM: " + redditPost.title + "\t" + redditPost.url);
+                            print("\nALBUM: " + redditPost.title + "\t" + redditPost.url + "\n");
                     else:
                         print("Max hit: " + redditPost.title);
                 else:
                     print("Not enough upvotes: " + redditPost.title);
             else:
-                print("Too small: " + str(imageInfo["width"]) + "\tHeight: " + str(imageInfo["height"]) + "\t" + redditPost.title);
+                print("TOO SMALL: " + str(imageInfo["width"]) + "\tHeight: " + str(imageInfo["height"]) + "\t" + redditPost.title + "\t" + redditPost.url);
 
         #Returns a dictionary with the image's info: width, height, contenttype
         def get_image_info(self, data):
