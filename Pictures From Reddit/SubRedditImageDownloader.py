@@ -1,14 +1,32 @@
-from StringIO import *
-import re;
-import random;
-import struct;
+from StringIO import *;
+
 import json;
+import random;
+import struct
 import sys;
 import urllib;
 import urllib2;
 
+#####################################################################
+
+# Written by Ryan D'souza
+#
+# Downloads photos from subreddits with the correct
+# file name and file type in the best resolution possible
+# Even downloads from annoying flickr links
+#
+# Dependencies:
+#   None except for the above imports
+#
+# Run Instructions:
+#   python SubRedditImageDownloader.py
+
+#####################################################################
+
+
 class SubRedditImageDownloader:
 
+        #Program specific variables
         generatedURL = None;
         redditPosts = None;
         numberOfSavedPhotos = None;
@@ -16,6 +34,7 @@ class SubRedditImageDownloader:
         userAgent = None;
         counter = None;
 
+        #Class/User customizable variables
         maxNumberOfPhotos = None;
         minUpvotes = None;
         minPhotoWidth = None;
@@ -28,6 +47,7 @@ class SubRedditImageDownloader:
             self.userAgents = [];
             self.counter = 0;
 
+            #Add 50 random UserAgents to the array and choose one
             with open('50useragents.txt', 'r') as userAgentsFile:
                 for userAgent in userAgentsFile:
                     self.userAgents.append(userAgent);
@@ -38,8 +58,10 @@ class SubRedditImageDownloader:
             self.minPhotoWidth = minPhotoWidth;
             self.minPhotoHeight = minPhotoHeight;
 
+            #Get the first page of Posts
             self.getRedditPosts(self.generatedURL);
 
+        #Gets the Posts from the URL and begins downloading them. Is recursive
         def getRedditPosts(self, redditURL):
             self.userAgentHandler();
             response = urllib2.urlopen(self.getURLLibRequest(redditURL)).read();
@@ -48,6 +70,7 @@ class SubRedditImageDownloader:
             data = response["data"];
             jsonPosts = data["children"];
 
+            #For each post on the page, get the info and save it to the array
             for jsonPost in jsonPosts:
                 jsonPost = jsonPost["data"];
                 domain = jsonPost["domain"];
@@ -58,82 +81,117 @@ class SubRedditImageDownloader:
                 redditPost = RedditPost(domain, score, title, url);
                 self.redditPosts.append(redditPost);
 
+                #Get the post's actual image URL and save that photo
                 actualURL = self.getPhotoURL(redditPost);
                 self.savePhoto(redditPost, actualURL);
 
-            #Check conditions to see if we should continue
+            #Check number of photos condition to see if we should continue
             if self.maxNumberOfPhotos != 0 and self.numberOfSavedPhotos >= self.maxNumberOfPhotos:
                 return;
             
-            #Get the last saved post
+            #Checks min upvotes condition to see if we should continue
             if self.minUpvotes != 0 and self.redditPosts[-1].score <= self.minUpvotes:
                 return;
 
+            #We should continue
             afterToken = data["after"];
             if len(afterToken) <= 3:
                 print("NO MORE IMAGES");
             else:
                 redditURL += "&after=" + afterToken;
                 print("Getting next page...");
+
+                #Recursively get more posts to save
                 self.getRedditPosts(redditURL);
 
+        #Handles dealing with the user agent - every 10 requests, change it
         def userAgentHandler(self):
             self.counter += 1;
             if self.counter % 10 == 0:
                 self.userAgent = random.choice(self.userAgents);
 
+        #Generates the URL request with the user agent
         def getURLLibRequest(self, url):
             request = urllib2.Request(url, headers={ 'User-Agent': self.userAgent});
             return request;
 
+        #Gets the image's actual URL - it's different depending on the site
         def getPhotoURL(self, redditPost):
-            #Plain and simple
+
+            #i.imgur.com is plain and simple
+            if redditPost.domain == 'i.imgur.com':
+                return redditPost.url;
+
+            #imgur.com requires a download tag to be appended
             if redditPost.domain == 'imgur.com':
                 return redditPost.url.replace("imgur.com/", "imgur.com/download/");
+
+            #Any form of flickr requires parsing to get the photo's actual URL
             if redditPost.domain == 'flickr.com':
                 self.userAgentHandler();
-                response = urllib2.urlopen(self.getURLLibRequest(redditURL)).read().replace("\n", "");
+                response = urllib2.urlopen(self.getURLLibRequest(redditPost.url)).read().replace("\n", "");
 
                 jsonBegin = response.find("modelExport: ", 0) + 12;
                 jsonEnd = response.find("auth: auth,", 0) - 3;
-                json = json.loads(response[jsonBegin:jsonEnd]);
-                photoSizes = json["photo-models"];
-                photoSizes = photoSizes[0]["sizes"];
-                if 'o' in photoSizes:
-                    return "http:" + photoSizes["o"]["url"];
-                if 'l' in photoSizes:
-                    return "http:" + photoSizes["l"]["url"];
-                if 'c' in photoSizes:
-                    return "http:" + photoSizes["c"]["url"];
+
+                try:
+                    jsonResult = json.loads(response[jsonBegin:jsonEnd]);
+                    photoSizes = jsonResult["photo-models"];
+                    photoSizes = photoSizes[0]["sizes"];
+
+                    #First try to get the original photo, then large, then 'c' size
+                    if 'o' in photoSizes:
+                        return "http:" + photoSizes["o"]["url"];
+                    if 'l' in photoSizes:
+                        return "http:" + photoSizes["l"]["url"];
+                    if 'c' in photoSizes:
+                        return "http:" + photoSizes["c"]["url"];
+                except ValueError:
+                    print("ERROR GETTING IMAGE: " + redditPost.title + "\tURL: " + redditPost.url);
+                    return redditPost.url;
+
+            #If it's nothing we're familiar with
             else:
                 return redditPost.url;
 
+        #Saves the photo with the image's name as the file's name
         def savePhoto(self, redditPost, actualURL):
-            print("Reading: " + actualURL);
+            print("Reading: " + redditPost.title + "\tURL: " + actualURL);
 
             try:
                 self.userAgentHandler();
                 image = urllib2.urlopen(self.getURLLibRequest(actualURL)).read();
             except IOError:
+                print("ERROR AT: " + redditPost.title + "\tURL: " + actualURL);
                 return;
 
+            #The image dimensions
             imageInfo = self.get_image_info(image);
 
+            #Check to make sure the image dimensions match the minimums
             if imageInfo["width"] >= self.minPhotoWidth and imageInfo["height"] >= self.minPhotoHeight or 1 == 1:
+
+                #And that the score is greater than the minimum
                 if redditPost.score >= self.minUpvotes:
+
+                    #And that we haven't passed our max number of photos
                     if self.maxNumberOfPhotos != 0 and self.numberOfSavedPhotos <= self.maxNumberOfPhotos:
+
+                        #Fix the file name - replace '\', shorten title if it's too long, add image type at the end
                         fileName = redditPost.title.replace("/", "").replace("\\", "");
                         if len(fileName) > 245:
                             fileName = fileName[0:245];
-                        
                         fileName += imageInfo["content_type"];
 
+                        #Save the image if it's a valid content-type
                         if len(imageInfo["content_type"]) > 2:
                             with open(fileName, 'w') as imageFile:
                                 imageFile.write(image);
                                 imageFile.close();
                                 print("Successfully saved: " + fileName);
                                 self.numberOfSavedPhotos += 1;
+
+                        #Otherwise, it's an album
                         else:
                             print("ALBUM: " + redditPost.title + "\t" + redditPost.url);
                     else:
@@ -143,6 +201,7 @@ class SubRedditImageDownloader:
             else:
                 print("Too small: " + str(imageInfo["width"]) + "\tHeight: " + str(imageInfo["height"]) + "\t" + redditPost.title);
 
+        #Returns a dictionary with the image's info: width, height, contenttype
         def get_image_info(self, data):
             data = str(data)
             size = len(data)
@@ -159,8 +218,6 @@ class SubRedditImageDownloader:
                 height = int(h)
 
             # See PNG 2. Edition spec (http://www.w3.org/TR/PNG/)
-            # Bytes 0-7 are below, 4-byte chunk length, then 'IHDR'
-            # and finally the 4-byte width, height
             elif ((size >= 24) and data.startswith('\211PNG\r\n\032\n')
                   and (data[12:16] == 'IHDR')):
                 content_type = '.png'
@@ -176,7 +233,7 @@ class SubRedditImageDownloader:
                 width = int(w)
                 height = int(h)
 
-            # handle JPEGs
+            # Handle JPEGs
             elif (size >= 2) and data.startswith('\377\330'):
                 content_type = '.jpeg'
                 jpeg = StringIO(data)
@@ -209,7 +266,8 @@ class SubRedditImageDownloader:
                 "height": height
             };
 
-                
+
+#Represents a post on Reddit
 class RedditPost:
     domain = None;
     score = None;
@@ -222,6 +280,6 @@ class RedditPost:
         self.title = title;
         self.url = url;
 
-
+#Main method
 if __name__ == "__main__":
     downloader = SubRedditImageDownloader(raw_input("Enter subreddit: "));
